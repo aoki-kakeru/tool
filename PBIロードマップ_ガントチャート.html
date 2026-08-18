@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PBIロードマップ ガントチャート</title>
+<style>
+  :root{
+    --bg:#f6f7fb; --panel:#ffffff; --border:#e2e5ec; --text:#1f2430; --muted:#6b7280;
+    --accent:#4f46e5; --accent-light:#eef2ff;
+    --st-notstarted:#94a3b8; --st-poc:#3b82f6; --st-incomplete:#f59e0b; --st-done:#22c55e; --st-other:#a855f7;
+    --line-milestone1:#ef4444; --line-milestone2:#8b5cf6; --line-today:#0ea5e9;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Hiragino Sans,"Noto Sans JP",sans-serif;
+    background:var(--bg); color:var(--text); font-size:13px;
+  }
+  .app{max-width:1400px;margin:0 auto;padding:16px 20px 40px;}
+  h1{font-size:19px;margin:0 0 4px;}
+  .sub{color:var(--muted);margin:0 0 16px;font-size:12px;}
+
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;}
+
+  /* Toolbar */
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;}
+  .field{display:flex;flex-direction:column;gap:3px;}
+  .field label{font-size:11px;color:var(--muted);}
+  input[type=date], input[type=text], input[type=number], select{
+    font-size:12px;padding:5px 7px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);
+  }
+  button{
+    font-size:12px;padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:#fff;color:var(--text);cursor:pointer;
+  }
+  button:hover{background:#f1f2f6;}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+  button.primary:hover{background:#4338ca;}
+  button.danger{color:#dc2626;border-color:#fca5a5;}
+  button.danger:hover{background:#fef2f2;}
+  .spacer{flex:1;}
+  .toolbar .divider{width:1px;background:var(--border);align-self:stretch;margin:0 4px;}
+
+  .chip-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+  .chip{
+    font-size:11px;padding:4px 10px;border-radius:999px;border:1px solid var(--border);background:#fff;cursor:pointer;color:var(--muted);
+  }
+  .chip.active{background:var(--accent-light);border-color:var(--accent);color:var(--accent);font-weight:600;}
+
+  /* Summary cards */
+  .cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+  .card{flex:1;min-width:190px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px;}
+  .card .title{font-size:12px;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between;}
+  .card .deadline{font-size:11px;color:var(--muted);}
+  .card .big{font-size:20px;font-weight:700;margin-bottom:6px;}
+  .bar-bg{height:7px;border-radius:4px;background:#eef0f4;overflow:hidden;}
+  .bar-fg{height:100%;background:var(--st-done);border-radius:4px;}
+  .card .meta{font-size:11px;color:var(--muted);margin-top:6px;}
+
+  /* Legend */
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:6px;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .dot{width:9px;height:9px;border-radius:3px;display:inline-block;}
+
+  /* Gantt */
+  .gantt-wrap{display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--panel);}
+  .gantt-left{width:400px;flex-shrink:0;overflow-y:auto;border-right:1px solid var(--border);max-height:600px;}
+  .gantt-right{flex:1;overflow:auto;max-height:600px;position:relative;}
+  .gantt-right-inner{position:relative;}
+
+  .row{display:flex;align-items:center;height:34px;border-bottom:1px solid #f1f2f6;}
+  .row.group-row{background:#f8f9fc;font-weight:600;}
+  .row.group-row:hover{background:#eef0f7;}
+  .row.task-row:hover{background:#fafbfd;}
+
+  .label-cell{display:flex;align-items:center;gap:6px;padding:0 8px;width:100%;overflow:hidden;}
+  .toggle{width:14px;flex-shrink:0;text-align:center;color:var(--muted);cursor:pointer;user-select:none;font-size:11px;}
+  .indent{width:14px;flex-shrink:0;}
+  .kind-badge{
+    font-size:10px;padding:1px 6px;border-radius:4px;flex-shrink:0;white-space:nowrap;
+    background:#eef2ff;color:#4338ca;
+  }
+  .kind-badge.SPIKE{background:#fef3c7;color:#92400e;}
+  .kind-badge.TEST{background:#dcfce7;color:#166534;}
+  .kind-badge.OTHER{background:#f3e8ff;color:#6b21a8;}
+  .row-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;}
+  .group-meta{font-size:11px;color:var(--muted);font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  select.status-select{max-width:118px;font-size:11px;padding:3px 4px;flex-shrink:0;}
+  .effort-text{font-size:11px;color:var(--muted);width:34px;text-align:right;flex-shrink:0;}
+  .row-actions{display:flex;gap:2px;flex-shrink:0;}
+  .icon-btn{border:none;background:none;cursor:pointer;font-size:13px;padding:2px 4px;color:var(--muted);border-radius:4px;}
+  .icon-btn:hover{background:#eceef3;}
+
+  .left-header{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--border);height:44px;display:flex;align-items:center;padding:0 8px;font-weight:600;color:var(--muted);font-size:12px;}
+  .ruler{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--border);height:44px;}
+  .ruler-months{position:relative;height:20px;border-bottom:1px solid #f1f2f6;}
+  .ruler-days{position:relative;height:24px;}
+  .month-label{position:absolute;top:0;height:20px;display:flex;align-items:center;padding-left:4px;font-size:11px;font-weight:600;color:var(--muted);border-left:1px solid var(--border);}
+  .day-tick{position:absolute;top:0;height:24px;font-size:9px;color:#b5bac5;border-left:1px solid #f1f2f6;padding-left:2px;padding-top:4px;}
+  .day-tick.mon{color:var(--muted);border-left:1px solid var(--border);}
+
+  .rows-area{position:relative;}
+  .overlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1;}
+  .vline{position:absolute;top:0;bottom:0;width:0;border-left:2px dashed;}
+  .vline-label{position:absolute;top:2px;font-size:10px;padding:1px 4px;border-radius:3px;white-space:nowrap;transform:translateX(-2px);}
+  .vline.today{border-left-color:var(--line-today);}
+  .vline-label.today{background:var(--line-today);color:#fff;}
+  .vline.ms1{border-left-color:var(--line-milestone1);}
+  .vline-label.ms1{background:var(--line-milestone1);color:#fff;}
+  .vline.ms2{border-left-color:var(--line-milestone2);}
+  .vline-label.ms2{background:var(--line-milestone2);color:#fff;}
+
+  .timeline-track{position:relative;height:34px;border-bottom:1px solid #f1f2f6;}
+  .timeline-track.group-row{background:#f8f9fc;}
+  .week-stripe{position:absolute;top:0;bottom:0;background:#fafbfd;}
+
+  .bar{
+    position:absolute;top:5px;height:24px;border-radius:5px;z-index:2;
+    display:flex;align-items:center;padding:0 6px;font-size:10px;color:#fff;white-space:nowrap;overflow:hidden;
+    cursor:grab;box-shadow:0 1px 2px rgba(0,0,0,.15);
+  }
+  .bar:active{cursor:grabbing;}
+  .bar .handle{position:absolute;top:0;bottom:0;width:7px;cursor:ew-resize;}
+  .bar .handle.left{left:0;border-radius:5px 0 0 5px;}
+  .bar .handle.right{right:0;border-radius:0 5px 5px 0;}
+  .bar.st-done{background:var(--st-done);}
+  .bar.st-notstarted{background:var(--st-notstarted);}
+  .bar.st-poc{background:var(--st-poc);}
+  .bar.st-incomplete{background:var(--st-incomplete);}
+  .bar.st-other{background:var(--st-other);}
+
+  .envelope{position:absolute;top:11px;height:12px;border-radius:6px;background:repeating-linear-gradient(45deg,#c7ccdb,#c7ccdb 4px,#dde0e9 4px,#dde0e9 8px);opacity:.7;pointer-events:none;}
+
+  .empty-state{padding:60px 20px;text-align:center;color:var(--muted);}
+  .empty-state b{color:var(--text);}
+
+  /* Modal */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(15,18,30,.45);display:flex;align-items:center;justify-content:center;z-index:100;}
+  .modal{background:#fff;border-radius:12px;padding:20px 22px;width:420px;max-width:90vw;max-height:85vh;overflow:auto;}
+  .modal h2{font-size:15px;margin:0 0 14px;}
+  .modal .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;}
+  .modal .grid .full{grid-column:1/-1;}
+  .modal .field label{font-size:11px;color:var(--muted);margin-bottom:3px;display:block;}
+  .modal .field input, .modal .field select{width:100%;}
+  .modal-actions{display:flex;justify-content:space-between;margin-top:16px;}
+  .modal-actions .right{display:flex;gap:8px;}
+
+  .footer-note{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>PBIロードマップ ガントチャート</h1>
+  <p class="sub">JSONのインポート/エクスポートでデータを保存します（ブラウザには自動保存されません。作業後は必ずエクスポートしてください）。</p>
+
+  <div class="panel toolbar" id="toolbar">
+    <div class="field">
+      <label>マイルストーン締切</label>
+      <div id="milestoneDates" style="display:flex;gap:8px;"></div>
+    </div>
+    <div class="divider"></div>
+    <button id="btnAddMilestone">＋マイルストーン追加</button>
+    <div class="divider"></div>
+    <button id="btnAddTask" class="primary">＋タスク追加</button>
+    <button id="btnExport">JSONエクスポート</button>
+    <button id="btnImport">JSONインポート</button>
+    <input type="file" id="fileImport" accept="application/json,.json" style="display:none;">
+    <div class="divider"></div>
+    <button id="btnExpandAll">全展開</button>
+    <button id="btnCollapseAll">全折りたたみ</button>
+    <button id="btnZoomOut">－ズーム</button>
+    <button id="btnZoomIn">＋ズーム</button>
+    <div class="spacer"></div>
+  </div>
+
+  <div class="panel">
+    <div class="field" style="margin-bottom:8px;">
+      <label>検索（PBI番号・タイトル）</label>
+      <input type="text" id="searchInput" placeholder="例: PBI-16 / 文字色" style="width:260px;">
+    </div>
+    <div class="chip-row" id="milestoneFilterChips"></div>
+    <div class="chip-row" id="statusFilterChips"></div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="cards" id="summaryCards"></div>
+
+  <div class="gantt-wrap">
+    <div class="gantt-left" id="ganttLeft"></div>
+    <div class="gantt-right" id="ganttRight">
+      <div class="gantt-right-inner" id="ganttRightInner"></div>
+    </div>
+  </div>
+
+  <p class="footer-note">
+    バーの左右端をドラッグすると開始日・終了日を変更でき、バー本体をドラッグすると期間を保ったまま移動できます。✎ボタンから詳細編集（ステータス・マイルストーン・工数など）が行えます。
+  </p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- State ---------------- */
+  var state = {
+    milestones: {},
+    milestoneOrder: [], // "なし" is implicit backlog, always last
+    tasks: [],
+    collapsed: {}, // pbiId -> true/false
+    filters: { milestones: null, statuses: null, search: "" }, // null = all
+    pxPerDay: 20,
+    nextIdNum: 1
+  };
+
+  var STATUS_COLORS = {
+    "未着手": "st-notstarted",
+    "未着手(POCあり)": "st-poc",
+    "未完了": "st-incomplete",
+    "済み": "st-done"
+  };
+  var STATUS_LIST = ["未着手","未着手(POCあり)","未完了","済み"];
+  var KIND_LABELS = { MAIN:"本体", SPIKE:"SPIKE調査", TEST:"テスト", OTHER:"その他" };
+
+  function statusClass(status){ return STATUS_COLORS[status] || "st-other"; }
+  function kindLabel(kind){ return KIND_LABELS[kind] || kind; }
+
+  function uid(){ var n = state.nextIdNum++; return "T" + String(n).padStart(3,"0"); }
+
+  /* ---------------- Date helpers ---------------- */
+  function parseISO(s){
+    var p = s.split("-").map(Number);
+    return new Date(p[0], p[1]-1, p[2]);
+  }
+  function toISO(d){
+    var y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0");
+    return y+"-"+m+"-"+day;
+  }
+  function addDays(d, n){ var r = new Date(d); r.setDate(r.getDate()+n); return r; }
+  function diffDays(a,b){ return Math.round((b-a)/86400000); }
+  function todayDate(){ var t=new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); }
+
+  /* ---------------- Derived data ---------------- */
+  function allMilestoneKeys(){ return state.milestoneOrder.concat(["なし"]); }
+
+  function effortHours(t){ return t.effortUnit === "日" ? t.effortValue*8 : t.effortValue; }
+
+  function computeRange(){
+    var dates = [];
+    state.tasks.forEach(function(t){ dates.push(parseISO(t.start)); dates.push(parseISO(t.end)); });
+    state.milestoneOrder.forEach(function(k){ if(state.milestones[k]) dates.push(parseISO(state.milestones[k])); });
+    dates.push(todayDate());
+    if(dates.length === 1){ // only "today" present, no tasks/milestones
+      return { start: addDays(dates[0], -7), end: addDays(dates[0], 90) };
+    }
+    var min = dates[0], max = dates[0];
+    dates.forEach(function(d){ if(d<min) min=d; if(d>max) max=d; });
+    return { start: addDays(min, -7), end: addDays(max, 14) };
+  }
+
+  function groupsInOrder(){
+    var order = [], seen = {};
+    state.tasks.forEach(function(t){
+      if(!seen[t.pbiId]){ seen[t.pbiId]=true; order.push(t.pbiId); }
+    });
+    return order;
+  }
+
+  function passesFilter(t){
+    if(state.filters.milestones && state.filters.milestones.indexOf(t.milestone) === -1) return false;
+    if(state.filters.statuses && state.filters.statuses.indexOf(t.status) === -1) return false;
+    if(state.filters.search){
+      var q = state.filters.search.toLowerCase();
+      var hay = (t.pbiId + " " + t.title).toLowerCase();
+      if(hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  }
+
+  /* Build render list: [{type:'group', pbiId, tasks:[...]}, {type:'task', task}, ...] */
+  function buildRenderList(){
+    var list = [];
+    groupsInOrder().forEach(function(pbiId){
+      var groupTasks = state.tasks.filter(function(t){ return t.pbiId === pbiId; });
+      var visible = groupTasks.filter(passesFilter);
+      if(visible.length === 0) return;
+      list.push({ type:"group", pbiId: pbiId, tasks: groupTasks, visibleTasks: visible });
+      if(!state.collapsed[pbiId]){
+        visible.forEach(function(t){ list.push({ type:"task", task: t }); });
+      }
+    });
+    return list;
+  }
+
+  /* ---------------- Rendering ---------------- */
+  var range = computeRange();
+
+  function render(){
+    range = computeRange();
+    renderMilestoneDateInputs();
+    renderFilterChips();
+    renderLegend();
+    renderSummaryCards();
+    renderGantt();
+  }
+
+  function renderMilestoneDateInputs(){
+    var el = document.getElementById("milestoneDates");
+    el.innerHTML = "";
+    state.milestoneOrder.forEach(function(key){
+      var wrap = document.createElement("div");
+      wrap.style.display="flex"; wrap.style.flexDirection="column"; wrap.style.gap="3px";
+      var label = document.createElement("label");
+      label.style.fontSize="11px"; label.style.color="var(--muted)";
+      label.textContent = key;
+      var input = document.createElement("input");
+      input.type = "date";
+      input.value = state.milestones[key] || "";
+      input.addEventListener("change", function(){
+        state.milestones[key] = input.value;
+        render();
+      });
+      wrap.appendChild(label); wrap.appendChild(input);
+      el.appendChild(wrap);
+    });
+  }
+
+  function renderFilterChips(){
+    var msEl = document.getElementById("milestoneFilterChips");
+    msEl.innerHTML = "";
+    var allKeys = allMilestoneKeys();
+    var makeChip = function(label, active, onClick){
+      var c = document.createElement("div");
+      c.className = "chip" + (active ? " active" : "");
+      c.textContent = label;
+      c.addEventListener("click", onClick);
+      return c;
+    };
+    msEl.appendChild(makeChip("すべて（マイルストーン）", state.filters.milestones===null, function(){
+      state.filters.milestones = null; render();
+    }));
+    allKeys.forEach(function(k){
+      var active = state.filters.milestones !== null && state.filters.milestones.indexOf(k) !== -1;
+      msEl.appendChild(makeChip(k, active, function(){
+        if(state.filters.milestones === null){ state.filters.milestones = [k]; }
+        else {
+          var idx = state.filters.milestones.indexOf(k);
+          if(idx === -1) state.filters.milestones.push(k); else state.filters.milestones.splice(idx,1);
+          if(state.filters.milestones.length === 0) state.filters.milestones = null;
+        }
+        render();
+      }));
+    });
+
+    var stEl = document.getElementById("statusFilterChips");
+    stEl.innerHTML = "";
+    stEl.appendChild(makeChip("すべて（ステータス）", state.filters.statuses===null, function(){
+      state.filters.statuses = null; render();
+    }));
+    var statusesInUse = STATUS_LIST.slice();
+    state.tasks.forEach(function(t){ if(statusesInUse.indexOf(t.status)===-1) statusesInUse.push(t.status); });
+    statusesInUse.forEach(function(s){
+      var active = state.filters.statuses !== null && state.filters.statuses.indexOf(s) !== -1;
+      stEl.appendChild(makeChip(s, active, function(){
+        if(state.filters.statuses === null){ state.filters.statuses = [s]; }
+        else {
+          var idx = state.filters.statuses.indexOf(s);
+          if(idx === -1) state.filters.statuses.push(s); else state.filters.statuses.splice(idx,1);
+          if(state.filters.statuses.length === 0) state.filters.statuses = null;
+        }
+        render();
+      }));
+    });
+  }
+
+  function renderLegend(){
+    var el = document.getElementById("legend");
+    var items = [
+      ["未着手","st-notstarted"], ["未着手(POCあり)","st-poc"], ["未完了","st-incomplete"],
+      ["済み","st-done"], ["その他","st-other"]
+    ];
+    el.innerHTML = items.map(function(it){
+      return '<span><span class="dot ' + it[1] + '" style="background:var(--' + it[1] + ')"></span>' + it[0] + '</span>';
+    }).join("");
+  }
+
+  function renderSummaryCards(){
+    var el = document.getElementById("summaryCards");
+    el.innerHTML = "";
+    var keys = allMilestoneKeys();
+    keys.forEach(function(key){
+      var tasksInBucket = state.tasks.filter(function(t){ return t.milestone === key; });
+      var total = tasksInBucket.length;
+      var done = tasksInBucket.filter(function(t){ return t.status === "済み"; }).length;
+      var totalEffort = tasksInBucket.reduce(function(s,t){ return s+effortHours(t); }, 0);
+      var doneEffort = tasksInBucket.filter(function(t){ return t.status==="済み"; }).reduce(function(s,t){ return s+effortHours(t); }, 0);
+      var pct = total ? Math.round(done/total*100) : 0;
+      var card = document.createElement("div");
+      card.className = "card";
+      var deadline = state.milestones[key];
+      card.innerHTML =
+        '<div class="title"><span>' + key + (key!=="なし" ? "リリース" : "（未定バックログ）") + '</span>' +
+        (deadline ? '<span class="deadline">締切 ' + deadline + '</span>' : '') + '</div>' +
+        '<div class="big">' + done + ' / ' + total + ' 件完了（' + pct + '%）</div>' +
+        '<div class="bar-bg"><div class="bar-fg" style="width:' + pct + '%"></div></div>' +
+        '<div class="meta">工数 ' + doneEffort + 'h / ' + totalEffort + 'h 完了</div>';
+      el.appendChild(card);
+    });
+    if(keys.length === 0 || state.tasks.length===0){
+      var card = document.createElement("div");
+      card.className="card";
+      card.innerHTML = '<div class="title"><span>データなし</span></div><div class="meta">JSONをインポートするか、タスクを追加してください。</div>';
+      el.appendChild(card);
+    }
+  }
+
+  function monthBounds(){
+    var months = [];
+    var cur = new Date(range.start.getFullYear(), range.start.getMonth(), 1);
+    while(cur <= range.end){
+      var next = new Date(cur.getFullYear(), cur.getMonth()+1, 1);
+      months.push({ start: cur, next: next });
+      cur = next;
+    }
+    return months;
+  }
+
+  function xForDate(d){ return diffDays(range.start, d) * state.pxPerDay; }
+
+  function renderRuler(totalWidth){
+    var html = '<div class="ruler" style="width:' + totalWidth + 'px;">';
+    html += '<div class="ruler-months">';
+    monthBounds().forEach(function(m){
+      var left = Math.max(0, xForDate(m.start));
+      var right = xForDate(m.next);
+      var width = right - left;
+      if(width <= 0) return;
+      html += '<div class="month-label" style="left:' + left + 'px;width:' + width + 'px;">' +
+        (m.start.getFullYear()) + '年' + (m.start.getMonth()+1) + '月</div>';
+    });
+    html += '</div><div class="ruler-days">';
+    var d = new Date(range.start);
+    var i = 0;
+    while(d <= range.end){
+      var left = i * state.pxPerDay;
+      var isMon = d.getDay() === 1;
+      if(state.pxPerDay >= 14 || isMon || d.getDate()===1){
+        html += '<div class="day-tick' + (isMon?" mon":"") + '" style="left:' + left + 'px;width:' + state.pxPerDay + 'px;">' + d.getDate() + '</div>';
+      }
+      d = addDays(d,1); i++;
+    }
+    html += '</div></div>';
+    return html;
+  }
+
+  function renderOverlayLines(totalWidth, totalHeight){
+    var html = '<div class="overlay" style="width:' + totalWidth + 'px;height:' + totalHeight + 'px;">';
+    var t = todayDate();
+    if(t >= range.start && t <= range.end){
+      html += '<div class="vline today" style="left:' + xForDate(t) + 'px;"></div>';
+      html += '<div class="vline-label today" style="left:' + xForDate(t) + 'px;">今日</div>';
+    }
+    var msClasses = ["ms1","ms2"];
+    state.milestoneOrder.forEach(function(key, idx){
+      var dateStr = state.milestones[key];
+      if(!dateStr) return;
+      var d = parseISO(dateStr);
+      if(d < range.start || d > range.end) return;
+      var cls = msClasses[idx % msClasses.length];
+      html += '<div class="vline ' + cls + '" style="left:' + xForDate(d) + 'px;"></div>';
+      html += '<div class="vline-label ' + cls + '" style="left:' + xForDate(d) + 'px;">' + key + '締切</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  var dragState = null;
+
+  function renderGantt(){
+    var list = buildRenderList();
+    var leftEl = document.getElementById("ganttLeft");
+    var rightInner = document.getElementById("ganttRightInner");
+    var totalDays = diffDays(range.start, range.end) + 1;
+    var totalWidth = totalDays * state.pxPerDay;
+
+    if(state.tasks.length === 0){
+      leftEl.innerHTML = '';
+      rightInner.innerHTML = '<div class="empty-state" style="width:' + Math.max(totalWidth,600) + 'px;">' +
+        '<b>タスクがありません。</b><br>右上の「JSONインポート」で作成済みデータを読み込むか、「＋タスク追加」で作成してください。</div>';
+      return;
+    }
+
+    var leftHtml = '<div class="left-header">タスク一覧</div>';
+    var rightRowsHtml = "";
+
+    list.forEach(function(item){
+      if(item.type === "group"){
+        var pbiId = item.pbiId;
+        var collapsed = !!state.collapsed[pbiId];
+        var totalEffort = item.tasks.reduce(function(s,t){ return s+effortHours(t); },0);
+        var doneCount = item.tasks.filter(function(t){ return t.status==="済み"; }).length;
+        var milestoneSet = {};
+        item.tasks.forEach(function(t){ milestoneSet[t.milestone]=true; });
+        var msLabel = Object.keys(milestoneSet).join("/");
+        leftHtml += '<div class="row group-row" data-pbi="' + pbiId + '">' +
+          '<div class="label-cell">' +
+          '<span class="toggle" data-toggle="' + pbiId + '">' + (collapsed?"▶":"▾") + '</span>' +
+          '<span>' + pbiId + '</span>' +
+          '<span class="group-meta">' + doneCount + '/' + item.tasks.length + '件・' + totalEffort + 'h・' + msLabel + '</span>' +
+          '<span class="spacer" style="flex:1"></span>' +
+          '<button class="icon-btn" data-quickadd="' + pbiId + '" title="このPBIに子タスクを追加">＋</button>' +
+          '</div></div>';
+
+        var starts = item.tasks.map(function(t){ return parseISO(t.start); });
+        var ends = item.tasks.map(function(t){ return parseISO(t.end); });
+        var minS = starts.reduce(function(a,b){ return a<b?a:b; });
+        var maxE = ends.reduce(function(a,b){ return a>b?a:b; });
+        var left = xForDate(minS), width = xForDate(addDays(maxE,1)) - left;
+        rightRowsHtml += '<div class="timeline-track group-row" style="width:' + totalWidth + 'px;">' +
+          '<div class="envelope" style="left:' + left + 'px;width:' + Math.max(width,4) + 'px;"></div>' +
+          '</div>';
+      } else {
+        var t = item.task;
+        var cls = statusClass(t.status);
+        leftHtml += '<div class="row task-row" data-task="' + t.id + '">' +
+          '<div class="label-cell">' +
+          '<span class="indent"></span>' +
+          '<span class="kind-badge ' + t.kind + '">' + kindLabel(t.kind) + '</span>' +
+          '<span class="row-title" title="' + escapeHtml(t.title) + '">' + escapeHtml(t.title) + '</span>' +
+          '<select class="status-select" data-status-for="' + t.id + '"></select>' +
+          '<span class="effort-text">' + t.effortValue + (t.effortUnit==="日"?"日":"h") + '</span>' +
+          '<span class="row-actions">' +
+          '<button class="icon-btn" data-edit="' + t.id + '" title="編集">✎</button>' +
+          '</span></div></div>';
+
+        var s = parseISO(t.start), e = parseISO(t.end);
+        var bl = xForDate(s), bw = xForDate(addDays(e,1)) - bl;
+        rightRowsHtml += '<div class="timeline-track" style="width:' + totalWidth + 'px;">' +
+          '<div class="bar ' + cls + '" data-bar="' + t.id + '" style="left:' + bl + 'px;width:' + Math.max(bw,6) + 'px;">' +
+          '<div class="handle left" data-handle="left" data-bar-id="' + t.id + '"></div>' +
+          '<span style="pointer-events:none;overflow:hidden;">' + escapeHtml(t.title) + '</span>' +
+          '<div class="handle right" data-handle="right" data-bar-id="' + t.id + '"></div>' +
+          '</div></div>';
+      }
+    });
+
+    leftEl.innerHTML = leftHtml;
+    var totalHeight = list.length * 34;
+    rightInner.innerHTML = renderRuler(totalWidth) +
+      '<div class="rows-area" style="width:' + totalWidth + 'px;height:' + totalHeight + 'px;">' +
+      renderOverlayLines(totalWidth, totalHeight) + rightRowsHtml + '</div>';
+
+    // populate status selects with current value
+    list.forEach(function(item){
+      if(item.type !== "task") return;
+      var t = item.task;
+      var sel = leftEl.querySelector('[data-status-for="' + t.id + '"]');
+      if(!sel) return;
+      var opts = STATUS_LIST.slice();
+      if(opts.indexOf(t.status) === -1) opts.push(t.status);
+      opts.push("__custom__");
+      sel.innerHTML = opts.map(function(o){
+        if(o === "__custom__") return '<option value="__custom__">その他を入力...</option>';
+        return '<option value="' + escapeHtml(o) + '"' + (o===t.status?" selected":"") + '>' + escapeHtml(o) + '</option>';
+      }).join("");
+      sel.addEventListener("change", function(){
+        if(sel.value === "__custom__"){
+          var v = window.prompt("ステータスを入力してください", t.status);
+          if(v){ t.status = v; render(); }
+          else { sel.value = t.status; }
+        } else {
+          t.status = sel.value; render();
+        }
+      });
+    });
+
+    bindRowEvents(leftEl, rightInner);
+    bindDrag(rightInner);
+    syncScroll();
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function bindRowEvents(leftEl, rightInner){
+    leftEl.querySelectorAll("[data-toggle]").forEach(function(el){
+      el.addEventListener("click", function(){
+        var pbiId = el.getAttribute("data-toggle");
+        state.collapsed[pbiId] = !state.collapsed[pbiId];
+        renderGantt();
+      });
+    });
+    leftEl.querySelectorAll("[data-quickadd]").forEach(function(el){
+      el.addEventListener("click", function(e){
+        e.stopPropagation();
+        openTaskModal(null, el.getAttribute("data-quickadd"));
+      });
+    });
+    leftEl.querySelectorAll("[data-edit]").forEach(function(el){
+      el.addEventListener("click", function(){
+        var id = el.getAttribute("data-edit");
+        var t = state.tasks.find(function(x){ return x.id===id; });
+        if(t) openTaskModal(t, null);
+      });
+    });
+  }
+
+  /* ---------------- Drag & resize ---------------- */
+  function bindDrag(rightInner){
+    rightInner.querySelectorAll(".bar").forEach(function(barEl){
+      var id = barEl.getAttribute("data-bar");
+      barEl.addEventListener("mousedown", function(e){
+        if(e.target.classList.contains("handle")) return;
+        startDrag(e, id, "move");
+      });
+    });
+    rightInner.querySelectorAll(".handle").forEach(function(h){
+      h.addEventListener("mousedown", function(e){
+        e.stopPropagation();
+        startDrag(e, h.getAttribute("data-bar-id"), h.getAttribute("data-handle"));
+      });
+    });
+  }
+
+  function startDrag(e, taskId, mode){
+    e.preventDefault();
+    var t = state.tasks.find(function(x){ return x.id===taskId; });
+    if(!t) return;
+    dragState = {
+      taskId: taskId, mode: mode, startX: e.clientX,
+      origStart: parseISO(t.start), origEnd: parseISO(t.end)
+    };
+    document.addEventListener("mousemove", onDragMove);
+    document.addEventListener("mouseup", onDragEnd);
+  }
+
+  function onDragMove(e){
+    if(!dragState) return;
+    var dx = e.clientX - dragState.startX;
+    var dayDelta = Math.round(dx / state.pxPerDay);
+    var t = state.tasks.find(function(x){ return x.id===dragState.taskId; });
+    if(!t) return;
+    var newStart = dragState.origStart, newEnd = dragState.origEnd;
+    if(dragState.mode === "move"){
+      newStart = addDays(dragState.origStart, dayDelta);
+      newEnd = addDays(dragState.origEnd, dayDelta);
+    } else if(dragState.mode === "left"){
+      newStart = addDays(dragState.origStart, dayDelta);
+      if(newStart > dragState.origEnd) newStart = new Date(dragState.origEnd);
+    } else if(dragState.mode === "right"){
+      newEnd = addDays(dragState.origEnd, dayDelta);
+      if(newEnd < dragState.origStart) newEnd = new Date(dragState.origStart);
+    }
+    t.start = toISO(newStart); t.end = toISO(newEnd);
+    renderGanttBarOnly(t);
+  }
+
+  function renderGanttBarOnly(t){
+    var barEl = document.querySelector('[data-bar="' + t.id + '"]');
+    if(!barEl) return;
+    var s = parseISO(t.start), e = parseISO(t.end);
+    var bl = xForDate(s), bw = xForDate(addDays(e,1)) - bl;
+    barEl.style.left = bl + "px";
+    barEl.style.width = Math.max(bw,6) + "px";
+  }
+
+  function onDragEnd(){
+    document.removeEventListener("mousemove", onDragMove);
+    document.removeEventListener("mouseup", onDragEnd);
+    dragState = null;
+    render();
+  }
+
+  /* ---------------- Scroll sync ---------------- */
+  function syncScroll(){
+    var left = document.getElementById("ganttLeft");
+    var right = document.getElementById("ganttRight");
+    left.onscroll = function(){ right.scrollTop = left.scrollTop; };
+    right.onscroll = function(){ left.scrollTop = right.scrollTop; };
+  }
+
+  /* ---------------- Task modal ---------------- */
+  function openTaskModal(task, defaultPbiId){
+    var isNew = !task;
+    var draft = isNew ? {
+      id: uid(),
+      pbiId: defaultPbiId || "",
+      kind: "MAIN",
+      title: "",
+      status: "未着手",
+      milestone: state.milestoneOrder[0] || "なし",
+      start: toISO(todayDate()),
+      end: toISO(addDays(todayDate(),3)),
+      effortValue: 8,
+      effortUnit: "h",
+      sourceFile: ""
+    } : Object.assign({}, task);
+
+    var backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    var modal = document.createElement("div");
+    modal.className = "modal";
+    var milestoneOptions = allMilestoneKeys().map(function(k){
+      return '<option value="' + escapeHtml(k) + '"' + (k===draft.milestone?" selected":"") + '>' + escapeHtml(k) + '</option>';
+    }).join("");
+    var kindOptions = ["MAIN","SPIKE","TEST","OTHER"].map(function(k){
+      return '<option value="' + k + '"' + (k===draft.kind?" selected":"") + '>' + kindLabel(k) + '</option>';
+    }).join("");
+
+    modal.innerHTML =
+      '<h2>' + (isNew? "タスクを追加" : "タスクを編集") + '</h2>' +
+      '<div class="grid">' +
+      '<div class="field"><label>PBI番号</label><input type="text" id="f_pbiId" value="' + escapeHtml(draft.pbiId) + '" placeholder="例: PBI-26"></div>' +
+      '<div class="field"><label>種別</label><select id="f_kind">' + kindOptions + '</select></div>' +
+      '<div class="field full"><label>タイトル</label><input type="text" id="f_title" value="' + escapeHtml(draft.title) + '"></div>' +
+      '<div class="field"><label>ステータス</label><input type="text" id="f_status" value="' + escapeHtml(draft.status) + '" list="statusSuggest"></div>' +
+      '<div class="field"><label>マイルストーン</label><select id="f_milestone">' + milestoneOptions + '</select></div>' +
+      '<div class="field"><label>開始日</label><input type="date" id="f_start" value="' + draft.start + '"></div>' +
+      '<div class="field"><label>終了日</label><input type="date" id="f_end" value="' + draft.end + '"></div>' +
+      '<div class="field"><label>見積工数</label><input type="number" id="f_effort" min="0" step="0.5" value="' + draft.effortValue + '"></div>' +
+      '<div class="field"><label>単位</label><select id="f_unit"><option value="h"' + (draft.effortUnit==="h"?" selected":"") + '>時間</option><option value="日"' + (draft.effortUnit==="日"?" selected":"") + '>日</option></select></div>' +
+      '<div class="field full"><label>参照ファイル名（任意）</label><input type="text" id="f_source" value="' + escapeHtml(draft.sourceFile||"") + '"></div>' +
+      '</div>' +
+      '<datalist id="statusSuggest">' + STATUS_LIST.map(function(s){ return '<option value="' + escapeHtml(s) + '">'; }).join("") + '</datalist>' +
+      '<div class="modal-actions">' +
+      '<div>' + (isNew? "" : '<button class="danger" id="f_delete">削除</button>') + '</div>' +
+      '<div class="right"><button id="f_cancel">キャンセル</button><button class="primary" id="f_save">保存</button></div>' +
+      '</div>';
+
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+
+    modal.querySelector("#f_cancel").addEventListener("click", function(){ backdrop.remove(); });
+    backdrop.addEventListener("click", function(e){ if(e.target === backdrop) backdrop.remove(); });
+
+    if(!isNew){
+      modal.querySelector("#f_delete").addEventListener("click", function(){
+        if(window.confirm("このタスクを削除しますか？")){
+          state.tasks = state.tasks.filter(function(x){ return x.id !== task.id; });
+          backdrop.remove();
+          render();
+        }
+      });
+    }
+
+    modal.querySelector("#f_save").addEventListener("click", function(){
+      var pbiId = modal.querySelector("#f_pbiId").value.trim();
+      var title = modal.querySelector("#f_title").value.trim();
+      if(!pbiId || !title){ window.alert("PBI番号とタイトルは必須です。"); return; }
+      var start = modal.querySelector("#f_start").value;
+      var end = modal.querySelector("#f_end").value;
+      if(parseISO(end) < parseISO(start)){ window.alert("終了日は開始日以降にしてください。"); return; }
+
+      var updated = {
+        id: draft.id,
+        pbiId: pbiId,
+        kind: modal.querySelector("#f_kind").value,
+        title: title,
+        status: modal.querySelector("#f_status").value.trim() || "未着手",
+        milestone: modal.querySelector("#f_milestone").value,
+        start: start,
+        end: end,
+        effortValue: parseFloat(modal.querySelector("#f_effort").value) || 0,
+        effortUnit: modal.querySelector("#f_unit").value,
+        sourceFile: modal.querySelector("#f_source").value.trim()
+      };
+
+      if(isNew){
+        state.tasks.push(updated);
+      } else {
+        var idx = state.tasks.findIndex(function(x){ return x.id === task.id; });
+        state.tasks[idx] = updated;
+      }
+      backdrop.remove();
+      render();
+    });
+  }
+
+  /* ---------------- Milestone add ---------------- */
+  function openMilestoneModal(){
+    var backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    var modal = document.createElement("div");
+    modal.className = "modal";
+    modal.innerHTML =
+      '<h2>マイルストーンを追加</h2>' +
+      '<div class="grid">' +
+      '<div class="field full"><label>名前（例: 15月）</label><input type="text" id="m_name"></div>' +
+      '<div class="field full"><label>締切日</label><input type="date" id="m_date"></div>' +
+      '</div>' +
+      '<div class="modal-actions"><div></div><div class="right"><button id="m_cancel">キャンセル</button><button class="primary" id="m_save">追加</button></div></div>';
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+    modal.querySelector("#m_cancel").addEventListener("click", function(){ backdrop.remove(); });
+    backdrop.addEventListener("click", function(e){ if(e.target===backdrop) backdrop.remove(); });
+    modal.querySelector("#m_save").addEventListener("click", function(){
+      var name = modal.querySelector("#m_name").value.trim();
+      var date = modal.querySelector("#m_date").value;
+      if(!name || !date){ window.alert("名前と日付を入力してください。"); return; }
+      if(state.milestoneOrder.indexOf(name) === -1) state.milestoneOrder.push(name);
+      state.milestones[name] = date;
+      backdrop.remove();
+      render();
+    });
+  }
+
+  /* ---------------- Export / Import ---------------- */
+  function exportJson(){
+    var data = {
+      schemaVersion: 1,
+      milestones: state.milestones,
+      milestoneOrder: state.milestoneOrder,
+      tasks: state.tasks.map(function(t){
+        return {
+          id: t.id, pbiId: t.pbiId, kind: t.kind, title: t.title, status: t.status,
+          milestone: t.milestone, start: t.start, end: t.end,
+          effortValue: t.effortValue, effortUnit: t.effortUnit, sourceFile: t.sourceFile || ""
+        };
+      })
+    };
+    var blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    var ts = toISO(todayDate());
+    a.href = url;
+    a.download = "PBIロードマップ_" + ts + ".json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function importJson(file){
+    var reader = new FileReader();
+    reader.onload = function(){
+      var data;
+      try { data = JSON.parse(reader.result); }
+      catch(err){ window.alert("JSONの読み込みに失敗しました: " + err.message); return; }
+      if(!data || !Array.isArray(data.tasks)){ window.alert("想定した形式のJSONではありません（tasks配列が見つかりません）。"); return; }
+      if(state.tasks.length > 0 && !window.confirm("現在のデータを上書きしてインポートします。よろしいですか？")) return;
+
+      if(data.milestones) state.milestones = Object.assign({}, data.milestones);
+      if(Array.isArray(data.milestoneOrder) && data.milestoneOrder.length){
+        state.milestoneOrder = data.milestoneOrder;
+      } else if(data.milestones){
+        state.milestoneOrder = Object.keys(data.milestones);
+      }
+
+      var maxNum = 0;
+      state.tasks = data.tasks.map(function(t, i){
+        var id = t.id || ("T" + String(i+1).padStart(3,"0"));
+        var m = /^T(\d+)$/.exec(id);
+        if(m) maxNum = Math.max(maxNum, parseInt(m[1],10));
+        return {
+          id: id,
+          pbiId: t.pbiId || ("PBI-" + (i+1)),
+          kind: t.kind || "MAIN",
+          title: t.title || "(無題)",
+          status: t.status || "未着手",
+          milestone: t.milestone || "なし",
+          start: t.start || toISO(todayDate()),
+          end: t.end || toISO(addDays(todayDate(),3)),
+          effortValue: typeof t.effortValue === "number" ? t.effortValue : 8,
+          effortUnit: t.effortUnit || "h",
+          sourceFile: t.sourceFile || ""
+        };
+      });
+      state.nextIdNum = maxNum + 1;
+      state.collapsed = {};
+      render();
+    };
+    reader.readAsText(file, "utf-8");
+  }
+
+  /* ---------------- Wire up toolbar ---------------- */
+  document.getElementById("btnAddMilestone").addEventListener("click", openMilestoneModal);
+  document.getElementById("btnAddTask").addEventListener("click", function(){ openTaskModal(null, null); });
+  document.getElementById("btnExport").addEventListener("click", exportJson);
+  document.getElementById("btnImport").addEventListener("click", function(){
+    document.getElementById("fileImport").click();
+  });
+  document.getElementById("fileImport").addEventListener("change", function(e){
+    if(e.target.files && e.target.files[0]) importJson(e.target.files[0]);
+    e.target.value = "";
+  });
+  document.getElementById("btnExpandAll").addEventListener("click", function(){
+    state.collapsed = {}; render();
+  });
+  document.getElementById("btnCollapseAll").addEventListener("click", function(){
+    groupsInOrder().forEach(function(p){ state.collapsed[p] = true; }); render();
+  });
+  document.getElementById("btnZoomIn").addEventListener("click", function(){
+    state.pxPerDay = Math.min(48, state.pxPerDay + 4); render();
+  });
+  document.getElementById("btnZoomOut").addEventListener("click", function(){
+    state.pxPerDay = Math.max(8, state.pxPerDay - 4); render();
+  });
+  document.getElementById("searchInput").addEventListener("input", function(e){
+    state.filters.search = e.target.value; render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
