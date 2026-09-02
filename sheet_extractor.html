@@ -1,0 +1,819 @@
+<title>Sheet Extractor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --paper:#eef3ea;
+    --surface:#ffffff;
+    --ink:#16241a;
+    --ink-soft:#4a5f4e;
+    --bar:#dfead9;
+    --line:#bcd0b6;
+    --accent:#2f7a4f;
+    --accent-strong:#1f5c3a;
+    --accent-ink:#f4faf1;
+    --danger:#a3401f;
+    --focus:#2f7a4f;
+    --shadow: 0 1px 2px rgba(22,36,26,.06), 0 8px 24px rgba(22,36,26,.08);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#0c1712;
+      --surface:#101d16;
+      --ink:#d9f0d2;
+      --ink-soft:#8fb08a;
+      --bar:#142219;
+      --line:#233a2c;
+      --accent:#4fd489;
+      --accent-strong:#7dfab0;
+      --accent-ink:#08130d;
+      --danger:#ff8f6b;
+      --focus:#7dfab0;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 28px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0c1712;
+    --surface:#101d16;
+    --ink:#d9f0d2;
+    --ink-soft:#8fb08a;
+    --bar:#142219;
+    --line:#233a2c;
+    --accent:#4fd489;
+    --accent-strong:#7dfab0;
+    --accent-ink:#08130d;
+    --danger:#ff8f6b;
+    --focus:#7dfab0;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 28px rgba(0,0,0,.5);
+  }
+
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.mono{ font-family:"IBM Plex Mono", ui-monospace, "SF Mono", monospace; }
+  h1,h2,h3{ text-wrap:balance; margin:0; }
+
+  a{ color:var(--accent-strong); }
+
+  .wrap{
+    max-width:1180px;
+    margin:0 auto;
+    padding:28px 20px 64px;
+    display:flex;
+    flex-direction:column;
+    gap:20px;
+  }
+
+  header.top{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+    border-bottom:2px solid var(--line);
+    padding-bottom:16px;
+  }
+  header.top .titles{ display:flex; flex-direction:column; gap:4px; }
+  header.top h1{
+    font-size:22px;
+    font-weight:700;
+    letter-spacing:.01em;
+  }
+  header.top h1 .dim{ color:var(--ink-soft); font-weight:500; }
+  header.top p{
+    margin:0;
+    font-size:13px;
+    color:var(--ink-soft);
+    max-width:52ch;
+  }
+  .stat-chip{
+    font-family:"IBM Plex Mono", monospace;
+    font-variant-numeric:tabular-nums;
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:.03em;
+    background:var(--accent);
+    color:var(--accent-ink);
+    border-radius:999px;
+    padding:6px 14px;
+    white-space:nowrap;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns: minmax(0,380px) minmax(0,1fr);
+    gap:20px;
+    align-items:start;
+  }
+  @media (max-width: 880px){
+    .grid{ grid-template-columns: 1fr; }
+  }
+
+  .panel{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:10px;
+    box-shadow:var(--shadow);
+    padding:18px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .panel h2{
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  .panel .hint{
+    font-size:12.5px;
+    line-height:1.6;
+    color:var(--ink-soft);
+    margin:0;
+  }
+  .panel .hint code{
+    font-family:"IBM Plex Mono", monospace;
+    background:var(--bar);
+    padding:1px 5px;
+    border-radius:4px;
+    font-size:11.5px;
+  }
+
+  textarea{
+    width:100%;
+    min-height:280px;
+    resize:vertical;
+    font-family:"IBM Plex Mono", ui-monospace, monospace;
+    font-size:12px;
+    line-height:1.55;
+    color:var(--ink);
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:12px;
+  }
+  textarea:focus-visible, button:focus-visible, input:focus-visible{
+    outline:2px solid var(--focus);
+    outline-offset:2px;
+  }
+
+  .btn-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  button{
+    font-family:"IBM Plex Sans", sans-serif;
+    font-size:13px;
+    font-weight:600;
+    border-radius:7px;
+    padding:9px 14px;
+    border:1px solid transparent;
+    cursor:pointer;
+    transition:transform .05s ease, opacity .15s ease;
+  }
+  button:active{ transform:translateY(1px); }
+  button.primary{ background:var(--accent); color:var(--accent-ink); }
+  button.primary:hover{ background:var(--accent-strong); }
+  button.ghost{ background:transparent; color:var(--ink); border-color:var(--line); }
+  button.ghost:hover{ background:var(--bar); }
+  button.danger-ghost{ background:transparent; color:var(--danger); border-color:var(--line); }
+  button.danger-ghost:hover{ background:var(--bar); }
+  button:disabled{ opacity:.45; cursor:not-allowed; }
+
+  .status{
+    font-size:12.5px;
+    min-height:1.4em;
+    color:var(--ink-soft);
+  }
+  .status.ok{ color:var(--accent-strong); }
+  .status.err{ color:var(--danger); }
+
+  .sample-banner{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    justify-content:space-between;
+    background:var(--bar);
+    border:1px dashed var(--line);
+    border-radius:8px;
+    padding:8px 12px;
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+  .sample-banner strong{ color:var(--ink); }
+
+  .table-scroll{
+    overflow:auto;
+    max-height:56vh;
+    border:1px solid var(--line);
+    border-radius:8px;
+  }
+  table{
+    border-collapse:collapse;
+    width:100%;
+    min-width:920px;
+    font-size:12.5px;
+  }
+  thead th{
+    position:sticky;
+    top:0;
+    background:var(--surface);
+    border-bottom:2px solid var(--line);
+    text-align:left;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    padding:8px 10px;
+    white-space:nowrap;
+  }
+  tbody td{
+    padding:8px 10px;
+    vertical-align:top;
+    border-bottom:1px solid var(--line);
+    line-height:1.5;
+  }
+  tbody tr.data:nth-of-type(odd){ background:var(--bar); }
+  tr.class-head td{
+    background:var(--accent-strong);
+    color:var(--accent-ink);
+    font-family:"IBM Plex Mono", monospace;
+    font-weight:700;
+    font-size:12px;
+    letter-spacing:.02em;
+    padding:9px 10px;
+  }
+  tr.class-head .chead-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+  tr.class-head .chead-counts{
+    font-weight:500;
+    font-size:11px;
+    opacity:.85;
+    font-variant-numeric:tabular-nums;
+  }
+  tr.class-head button{
+    font-size:11px;
+    padding:3px 9px;
+    background:rgba(0,0,0,.12);
+    color:inherit;
+    border-color:transparent;
+  }
+  tr.class-head button:hover{ background:rgba(0,0,0,.22); }
+
+  td.name{ font-family:"IBM Plex Mono", monospace; font-weight:600; white-space:nowrap; }
+  td.kind{ white-space:nowrap; color:var(--ink-soft); font-size:11.5px; }
+  td.ro, td.returns{ font-family:"IBM Plex Mono", monospace; white-space:nowrap; font-size:11.5px; color:var(--ink-soft); }
+  td.syntax, td.args{ font-family:"IBM Plex Mono", monospace; font-size:11.5px; min-width:180px; }
+  td.desc{ min-width:220px; }
+  td.notes{ color:var(--ink-soft); font-size:11.5px; min-width:160px; }
+
+  .empty-row td{
+    text-align:center;
+    color:var(--ink-soft);
+    padding:28px 10px;
+    font-size:13px;
+  }
+
+  .tsv-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+
+  footer.note{
+    font-size:11.5px;
+    color:var(--ink-soft);
+    text-align:center;
+    padding-top:8px;
+  }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="titles">
+      <h1>Sheet Extractor <span class="dim">/ シート抽出機</span></h1>
+      <p>esm Developers の JS プラグイン API ドキュメント（クラスページ）の HTML ソースを貼り付けると、インスタンスプロパティとインスタンスメソッドを TSV に自動抽出します。</p>
+    </div>
+    <div class="stat-chip" id="statChip">0 クラス ・ 0 行</div>
+  </header>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>1. HTML ソースを貼り付け</h2>
+      <p class="hint">
+        対象クラスのページ（例 <code>/js-plugin/class/abstract/SheetItem.html</code>）を開き、右クリック →「ページのソースを表示」→ 全選択してコピーしたものをそのまま下に貼り付けてください。&lt;head&gt;やスクリプトタグが混ざっていても問題ありません。
+      </p>
+      <textarea id="input" placeholder="ここに <!doctype html> から始まるページソースを貼り付け…"></textarea>
+      <div class="btn-row">
+        <button class="primary" id="extractBtn">抽出して追加</button>
+        <button class="ghost" id="clearInputBtn">入力をクリア</button>
+      </div>
+      <div class="status" id="status"></div>
+    </section>
+
+    <section class="panel">
+      <h2>2. 抽出結果</h2>
+      <div class="sample-banner" id="sampleBanner" hidden>
+        <span><strong>サンプルデータ</strong>を表示中です（SheetItem / SingleSelectItem）。自分のデータを貼り付けると自動で追加されます。</span>
+        <button class="ghost" id="clearSampleBtn">サンプルを消す</button>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>種別</th>
+              <th>名前</th>
+              <th>読取専用</th>
+              <th>構文</th>
+              <th>引数</th>
+              <th>返値</th>
+              <th>説明</th>
+              <th>備考</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="tsv-head">
+        <h2 style="margin-top:6px">TSV（コピー用）</h2>
+        <div class="btn-row">
+          <button class="ghost" id="copyBtn">TSVをコピー</button>
+          <button class="danger-ghost" id="clearAllBtn">全てクリア</button>
+        </div>
+      </div>
+      <textarea id="tsvOut" readonly style="min-height:140px"></textarea>
+      <div class="status" id="copyStatus"></div>
+    </section>
+  </div>
+
+  <footer class="note">貼り付けたHTMLはこの画面内だけで処理されます（外部送信なし）。抽出結果はこのブラウザにのみ保存されます。</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var STORAGE_KEY = "sheet-extractor-rows-v1";
+
+  // ---------- sample data (mirrors a manual extraction of SheetItem / SingleSelectItem) ----------
+  function sampleRows(){
+    return [
+      { cls:"SheetItem", kind:"プロパティ", name:"label", readonly:false, syntax:"", args:[], returns:"", desc:"項目名を示す文字列です。", notes:[] },
+      { cls:"SheetItem", kind:"プロパティ", name:"originalLabel", readonly:true, syntax:"", args:[], returns:"", desc:"label の初期値です。", notes:[] },
+      { cls:"SheetItem", kind:"プロパティ", name:"disabled", readonly:false, syntax:"", args:[], returns:"", desc:"項目の入力可否を示す真偽値です。", notes:[] },
+      { cls:"SheetItem", kind:"プロパティ", name:"hidden", readonly:false, syntax:"", args:[], returns:"", desc:"項目の表示・非表示状態を示す真偽値です。", notes:["表示・非表示に関する注意事項あり"] },
+      { cls:"SheetItem", kind:"メソッド", name:"setLabel", readonly:false, syntax:"setLabel(label);", args:[{name:"label",desc:"入力内容を示す文字列です。"}], returns:"なし", desc:"文字列を受け取り、入力内容を変更します。", notes:[] },
+      { cls:"SheetItem", kind:"メソッド", name:"labelContains", readonly:false, syntax:"labelContains(substring);", args:[{name:"substring",desc:"検索対象の文字列です。"}], returns:"真偽値", desc:"指定した文字列が label に含まれているかどうかを判定します。", notes:[] },
+      { cls:"SheetItem", kind:"メソッド", name:"labelEqualsTo", readonly:false, syntax:"labelEqualsTo(string);", args:[{name:"string",desc:"比較対象の文字列です。"}], returns:"真偽値", desc:"label が指定した文字列と一致するかどうかを判定します。", notes:[] },
+      { cls:"SheetItem", kind:"メソッド", name:"isDisabled", readonly:false, syntax:"isDisabled();", args:[], returns:"真偽値", desc:"項目の入力可否を判定します。", notes:[] },
+      { cls:"SheetItem", kind:"メソッド", name:"isHidden", readonly:false, syntax:"isHidden();", args:[], returns:"真偽値", desc:"項目の表示・非表示状態を判定します。", notes:["表示・非表示に関する注意事項あり"] },
+      { cls:"SheetItem", kind:"メソッド", name:"setDisabled", readonly:false, syntax:"setDisabled(disabled);", args:[{name:"disabled",desc:"入力可否を示す真偽値です。"}], returns:"なし", desc:"項目の入力可否を変更します。", notes:[] },
+      { cls:"SheetItem", kind:"メソッド", name:"setHidden", readonly:false, syntax:"setHidden(isHidden);", args:[{name:"isHidden",desc:"表示・非表示状態を示す真偽値です。"}], returns:"なし", desc:"項目の表示・非表示状態を変更します。", notes:["表示・非表示に関する注意事項あり"] },
+      { cls:"SheetItem", kind:"メソッド", name:"setLabelColor", readonly:false, syntax:"setLabelColor(color);", args:[{name:"color",desc:"色を示す文字列です。"}], returns:"なし", desc:"項目名の文字の色を変更します。", notes:[] },
+      { cls:"SheetItem", kind:"メソッド", name:"setBackgroundColor", readonly:false, syntax:"setBackgroundColor(color);", args:[{name:"color",desc:"色を示す文字列です。"}], returns:"なし", desc:"項目の背景色を変更します。", notes:[] },
+      { cls:"SheetItem", kind:"メソッド", name:"setButtons", readonly:false, syntax:"setButtons([{ onClick, title }]);", args:[{name:"onClick",desc:"ボタンがクリックされたときに実行される関数です。"},{name:"title",desc:"ボタンに表示される文字列です。"}], returns:"なし", desc:"項目にボタンを追加します。", notes:["[ブラウザー] SheetDetailScreen クラスの項目のみ使用可（SheetSaveScreen/SheetIndexScreenでは不可）"] },
+
+      { cls:"SingleSelectItem", kind:"プロパティ", name:"selection", readonly:false, syntax:"", args:[], returns:"", desc:"現在選択されている値の id を示す数値です。", notes:[] },
+      { cls:"SingleSelectItem", kind:"プロパティ", name:"selectionLabel", readonly:true, syntax:"", args:[], returns:"", desc:"現在選択されている値の表示名です。", notes:[] },
+      { cls:"SingleSelectItem", kind:"プロパティ", name:"selectionLabelLength", readonly:true, syntax:"", args:[], returns:"", desc:"selectionLabel の文字数を表します。", notes:[] },
+      { cls:"SingleSelectItem", kind:"プロパティ", name:"choices", readonly:true, syntax:"", args:[], returns:"", desc:"選択肢の配列です。", notes:[] },
+      { cls:"SingleSelectItem", kind:"メソッド", name:"setSelection", readonly:false, syntax:"setSelection(id);", args:[{name:"id",desc:"選択する値の id を示す数値です。"}], returns:"なし", desc:"selection の値を変更します。", notes:[] },
+      { cls:"SingleSelectItem", kind:"メソッド", name:"setSelectionByLabel", readonly:false, syntax:"setSelectionByLabel(label);", args:[{name:"label",desc:"選択する値の label です。"}], returns:"なし", desc:"selection の値を指定した選択肢名の選択肢に変更します。", notes:[] },
+      { cls:"SingleSelectItem", kind:"メソッド", name:"setChoiceDisabled", readonly:false, syntax:"setChoiceDisabled(id);", args:[{name:"id",desc:"選択肢の id を示す数値です。"}], returns:"なし", desc:"指定した id の選択肢を選択できないようにします。 レコード詳細画面では利用できません。", notes:[] },
+      { cls:"SingleSelectItem", kind:"メソッド", name:"setChoiceDisabledByLabel", readonly:false, syntax:"setChoiceDisabledByLabel(label, disabled);", args:[{name:"label",desc:"選択肢の選択肢名です。"},{name:"disabled",desc:"対象を非活性状態にするかどうかを指定するための真偽値です。"}], returns:"なし", desc:"指定した選択肢名の選択肢を選択できないようにします。 レコード詳細画面では利用できません。", notes:[] },
+      { cls:"SingleSelectItem", kind:"メソッド", name:"selectionEqualsTo", readonly:false, syntax:"selectionEqualsTo(id);", args:[{name:"id",desc:"比較対象の id を示す数値です。"}], returns:"真偽値", desc:"selection が指定した id と一致するかどうかを判定します。", notes:[] },
+      { cls:"SingleSelectItem", kind:"メソッド", name:"selectionLabelEqualsTo", readonly:false, syntax:"selectionLabelEqualsTo(label);", args:[{name:"label",desc:"比較対象の文字列です。"}], returns:"真偽値", desc:"selectionLabel が指定した文字列と一致するかどうかを判定します。", notes:[] },
+      { cls:"SingleSelectItem", kind:"メソッド", name:"selectionLabelLengthEqualsTo", readonly:false, syntax:"selectionLabelLengthEqualsTo(number);", args:[{name:"number",desc:"比較対象の数値です。"}], returns:"真偽値", desc:"selectionLabel の文字数が指定した数値と同じかどうかを判定します。", notes:[] },
+      { cls:"SingleSelectItem", kind:"メソッド", name:"selectionLabelLengthIsGreaterThan", readonly:false, syntax:"selectionLabelLengthIsGreaterThan(number);", args:[{name:"number",desc:"比較対象の数値です。"}], returns:"真偽値", desc:"selectionLabel の文字数が指定した数値より大きいかどうかを判定します。", notes:[] },
+      { cls:"SingleSelectItem", kind:"メソッド", name:"selectionLabelLengthIsGreaterThanOrEqual", readonly:false, syntax:"selectionLabelLengthIsGreaterThanOrEqual(number);", args:[{name:"number",desc:"比較対象の数値です。"}], returns:"真偽値", desc:"selectionLabel の文字数が指定した数値以上かどうかを判定します。", notes:[] },
+      { cls:"SingleSelectItem", kind:"メソッド", name:"selectionLabelLengthIsLessThan", readonly:false, syntax:"selectionLabelLengthIsLessThan(number);", args:[{name:"number",desc:"比較対象の数値です。"}], returns:"真偽値", desc:"selectionLabel の文字数が指定した数値より小さいかどうかを判定します。", notes:[] },
+      { cls:"SingleSelectItem", kind:"メソッド", name:"selectionLabelLengthIsLessThanOrEqual", readonly:false, syntax:"selectionLabelLengthIsLessThanOrEqual(number);", args:[{name:"number",desc:"比較対象の数値です。"}], returns:"真偽値", desc:"selectionLabel の文字数が指定した数値以下かどうかを判定します。", notes:[] },
+      { cls:"SingleSelectItem", kind:"メソッド", name:"selectionLabelContains", readonly:false, syntax:"selectionLabelContains(substring);", args:[{name:"substring",desc:"検索対象の文字列です。"}], returns:"真偽値", desc:"指定した文字列が selectionLabel に含まれているかどうかを判定します。", notes:[] }
+    ];
+  }
+
+  // ---------- parser ----------
+  function cleanText(t){
+    return (t || "").replace(/\s+/g, " ").trim();
+  }
+
+  function extractFromHTML(htmlString){
+    var doc = new DOMParser().parseFromString(htmlString, "text/html");
+    var h1 = doc.querySelector("h1[id]") || doc.querySelector("h1");
+    var className = h1 ? cleanText(h1.textContent) : "";
+
+    var body = doc.body;
+    if(!body) return { className: className, rows: [] };
+
+    var walker = doc.createTreeWalker(body, NodeFilter.SHOW_ELEMENT, null);
+    var rows = [];
+    var section = null;   // 'prop' | 'method' | null
+    var current = null;
+    var sub = null;
+    var pendingArgIndex = null;
+
+    function pushCurrent(){
+      if(current) rows.push(current);
+      current = null;
+      pendingArgIndex = null;
+    }
+
+    var node = walker.currentNode;
+    while(node){
+      var tag = node.tagName ? node.tagName.toLowerCase() : "";
+
+      if(tag === "h2"){
+        pushCurrent();
+        var t2 = cleanText(node.textContent);
+        if(t2.indexOf("インスタンスプロパティ") === 0) section = "prop";
+        else if(t2.indexOf("インスタンスメソッド") === 0) section = "method";
+        else section = null;
+        sub = null;
+        node = walker.nextNode();
+        continue;
+      }
+
+      if(!section){ node = walker.nextNode(); continue; }
+
+      if(tag === "h3"){
+        pushCurrent();
+        var badgeEls = Array.prototype.slice.call(node.querySelectorAll(".vp-badge"));
+        var badges = badgeEls.map(function(b){ return cleanText(b.textContent); });
+        var clone = node.cloneNode(true);
+        var cloneBadges = clone.querySelectorAll(".vp-badge");
+        cloneBadges.forEach(function(b){ b.parentNode.removeChild(b); });
+        var name = cleanText(clone.textContent);
+        current = {
+          cls: className,
+          kind: section === "prop" ? "プロパティ" : "メソッド",
+          name: name,
+          readonly: badges.indexOf("読み取り専用") !== -1,
+          otherBadges: badges.filter(function(b){ return b !== "読み取り専用"; }),
+          syntax: "",
+          args: [],
+          returns: "",
+          desc: "",
+          notes: []
+        };
+        sub = null;
+        node = walker.nextNode();
+        continue;
+      }
+
+      if(/^h[4-6]$/.test(tag)){
+        sub = cleanText(node.textContent);
+        node = walker.nextNode();
+        continue;
+      }
+
+      if(!current){ node = walker.nextNode(); continue; }
+
+      if(sub === null){
+        if(tag === "p" && !current.desc){
+          var dtext = cleanText(node.textContent);
+          if(dtext) current.desc = dtext;
+        } else if(tag === "div" && node.classList && node.classList.contains("hint-container")){
+          var paras = Array.prototype.slice.call(node.querySelectorAll("p")).filter(function(p){
+            return !(p.classList && p.classList.contains("hint-container-title"));
+          });
+          var ntext = paras.map(function(p){ return cleanText(p.textContent); }).filter(Boolean).join(" ");
+          if(!ntext) ntext = cleanText(node.textContent);
+          if(ntext) current.notes.push(ntext);
+        }
+        node = walker.nextNode();
+        continue;
+      }
+
+      if(sub.indexOf("例") === 0){
+        node = walker.nextNode();
+        continue;
+      }
+
+      if(sub === "構文"){
+        if(tag === "div" && node.className && node.className.indexOf("language-") !== -1){
+          var codeEl0 = node.querySelector("code");
+          if(codeEl0 && !current.syntax) current.syntax = cleanText(codeEl0.textContent);
+        }
+        node = walker.nextNode();
+        continue;
+      }
+
+      if(sub === "引数"){
+        if(tag === "p"){
+          var t = cleanText(node.textContent);
+          if(t === "なし"){
+            current.args = [];
+            pendingArgIndex = null;
+          } else if(t){
+            var codeEl = node.querySelector("code");
+            if(codeEl){
+              var codeText = cleanText(codeEl.textContent);
+              if(codeText === t){
+                current.args.push({ name: codeText, desc: "" });
+                pendingArgIndex = current.args.length - 1;
+              } else {
+                var pClone = node.cloneNode(true);
+                var codeInClone = pClone.querySelector("code");
+                if(codeInClone && codeInClone.parentNode) codeInClone.parentNode.removeChild(codeInClone);
+                var rest = cleanText(pClone.textContent);
+                current.args.push({ name: codeText, desc: rest });
+                pendingArgIndex = null;
+              }
+            } else if(pendingArgIndex !== null){
+              current.args[pendingArgIndex].desc = t;
+              pendingArgIndex = null;
+            } else {
+              current.args.push({ name: "", desc: t });
+            }
+          }
+        }
+        node = walker.nextNode();
+        continue;
+      }
+
+      if(sub === "返値"){
+        if(tag === "p" && !current.returns){
+          var rtext = cleanText(node.textContent);
+          if(rtext) current.returns = rtext;
+        }
+        node = walker.nextNode();
+        continue;
+      }
+
+      node = walker.nextNode();
+    }
+    pushCurrent();
+    return { className: className, rows: rows };
+  }
+
+  // ---------- field formatting ----------
+  function argsField(row){
+    if(row.kind !== "メソッド") return "-";
+    if(!row.args || row.args.length === 0) return "なし";
+    return row.args.map(function(a){
+      return a.name ? (a.name + ": " + a.desc) : a.desc;
+    }).join(" / ");
+  }
+  function returnsField(row){
+    if(row.kind !== "メソッド") return "-";
+    return row.returns || "-";
+  }
+  function syntaxField(row){
+    if(row.kind !== "メソッド") return "-";
+    return row.syntax || "-";
+  }
+  function roField(row){
+    if(row.kind !== "プロパティ") return "-";
+    return row.readonly ? "Yes" : "No";
+  }
+  function notesField(row){
+    var parts = [];
+    (row.otherBadges || []).forEach(function(b){ parts.push("[" + b + "]"); });
+    (row.notes || []).forEach(function(n){ if(n) parts.push(n); });
+    return parts.join(" / ");
+  }
+  function keyOf(row){ return row.cls + "||" + row.kind + "||" + row.name; }
+
+  // ---------- store ----------
+  var store = [];
+  var usingSample = false;
+
+  function loadStore(){
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if(raw){
+        var parsed = JSON.parse(raw);
+        if(Array.isArray(parsed) && parsed.length){
+          store = parsed;
+          usingSample = false;
+          return;
+        }
+      }
+    }catch(e){}
+    store = sampleRows();
+    usingSample = true;
+  }
+
+  function saveStore(){
+    try{
+      if(!usingSample) localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    }catch(e){}
+  }
+
+  function upsertRows(newRows){
+    newRows.forEach(function(r){
+      var k = keyOf(r);
+      var idx = -1;
+      for(var i=0;i<store.length;i++){ if(keyOf(store[i]) === k){ idx = i; break; } }
+      if(idx >= 0) store[idx] = r; else store.push(r);
+    });
+  }
+
+  function groupByClass(rows){
+    var order = [];
+    var map = {};
+    rows.forEach(function(r){
+      if(!map[r.cls]){ map[r.cls] = []; order.push(r.cls); }
+      map[r.cls].push(r);
+    });
+    return order.map(function(cls){ return { cls: cls, rows: map[cls] }; });
+  }
+
+  // ---------- rendering ----------
+  var tbody = document.getElementById("tbody");
+  var statChip = document.getElementById("statChip");
+  var tsvOut = document.getElementById("tsvOut");
+  var sampleBanner = document.getElementById("sampleBanner");
+
+  function td(text, cls){
+    var el = document.createElement("td");
+    if(cls) el.className = cls;
+    el.textContent = text;
+    return el;
+  }
+
+  function render(){
+    tbody.innerHTML = "";
+    var groups = groupByClass(store);
+
+    if(groups.length === 0){
+      var tr = document.createElement("tr");
+      tr.className = "empty-row";
+      var tdEl = document.createElement("td");
+      tdEl.colSpan = 8;
+      tdEl.textContent = "まだデータがありません。左のパネルにHTMLソースを貼り付けて「抽出して追加」を押してください。";
+      tr.appendChild(tdEl);
+      tbody.appendChild(tr);
+    }
+
+    groups.forEach(function(g){
+      var propCount = g.rows.filter(function(r){ return r.kind === "プロパティ"; }).length;
+      var methodCount = g.rows.filter(function(r){ return r.kind === "メソッド"; }).length;
+
+      var headTr = document.createElement("tr");
+      headTr.className = "class-head";
+      var headTd = document.createElement("td");
+      headTd.colSpan = 8;
+      var wrapDiv = document.createElement("div");
+      wrapDiv.className = "chead-row";
+      var left = document.createElement("span");
+      left.textContent = g.cls || "(クラス名不明)";
+      var right = document.createElement("span");
+      right.className = "chead-counts";
+      right.textContent = "プロパティ " + propCount + " ・ メソッド " + methodCount;
+      var delBtn = document.createElement("button");
+      delBtn.textContent = "このクラスを削除";
+      delBtn.addEventListener("click", function(){
+        store = store.filter(function(r){ return r.cls !== g.cls; });
+        usingSample = false;
+        saveStore();
+        renderAll();
+      });
+      var rightWrap = document.createElement("span");
+      rightWrap.style.display = "flex";
+      rightWrap.style.alignItems = "center";
+      rightWrap.style.gap = "10px";
+      rightWrap.appendChild(right);
+      rightWrap.appendChild(delBtn);
+      wrapDiv.appendChild(left);
+      wrapDiv.appendChild(rightWrap);
+      headTd.appendChild(wrapDiv);
+      headTr.appendChild(headTd);
+      tbody.appendChild(headTr);
+
+      g.rows.forEach(function(r){
+        var tr = document.createElement("tr");
+        tr.className = "data";
+        tr.appendChild(td(r.kind, "kind"));
+        tr.appendChild(td(r.name, "name"));
+        tr.appendChild(td(roField(r), "ro"));
+        tr.appendChild(td(syntaxField(r), "syntax"));
+        tr.appendChild(td(argsField(r), "args"));
+        tr.appendChild(td(returnsField(r), "returns"));
+        tr.appendChild(td(r.desc || "-", "desc"));
+        tr.appendChild(td(notesField(r), "notes"));
+        tbody.appendChild(tr);
+      });
+    });
+
+    var totalRows = store.length;
+    var totalClasses = groups.length;
+    statChip.textContent = totalClasses + " クラス ・ " + totalRows + " 行";
+
+    sampleBanner.hidden = !usingSample;
+
+    tsvOut.value = toTSV(store);
+  }
+
+  function toTSV(rows){
+    var header = ["対象クラス","種別","名前","読取専用","構文","引数","返値","説明","備考"];
+    var lines = [header.join("\t")];
+    rows.forEach(function(r){
+      lines.push([
+        r.cls || "",
+        r.kind || "",
+        r.name || "",
+        roField(r),
+        syntaxField(r),
+        argsField(r),
+        returnsField(r),
+        r.desc || "",
+        notesField(r)
+      ].join("\t"));
+    });
+    return lines.join("\n");
+  }
+
+  function renderAll(){ render(); }
+
+  // ---------- events ----------
+  var input = document.getElementById("input");
+  var status = document.getElementById("status");
+  var copyStatus = document.getElementById("copyStatus");
+
+  document.getElementById("extractBtn").addEventListener("click", function(){
+    var html = input.value;
+    if(!html || !html.trim()){
+      status.textContent = "HTMLソースが空です。ページのソースを貼り付けてください。";
+      status.className = "status err";
+      return;
+    }
+    var result;
+    try{
+      result = extractFromHTML(html);
+    }catch(e){
+      status.textContent = "解析中にエラーが発生しました: " + e.message;
+      status.className = "status err";
+      return;
+    }
+    if(!result.rows.length){
+      status.textContent = "「インスタンスプロパティ」「インスタンスメソッド」の見出しが見つかりませんでした。esm Developers のクラスページのHTMLソースか確認してください。";
+      status.className = "status err";
+      return;
+    }
+    if(usingSample){ store = []; usingSample = false; }
+    upsertRows(result.rows);
+    saveStore();
+    renderAll();
+    status.textContent = "「" + (result.className || "unknown") + "」から " + result.rows.length + " 行を抽出して追加しました。";
+    status.className = "status ok";
+  });
+
+  document.getElementById("clearInputBtn").addEventListener("click", function(){
+    input.value = "";
+    status.textContent = "";
+  });
+
+  document.getElementById("clearAllBtn").addEventListener("click", function(){
+    store = [];
+    usingSample = false;
+    try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+    renderAll();
+    status.textContent = "";
+  });
+
+  document.getElementById("clearSampleBtn").addEventListener("click", function(){
+    store = [];
+    usingSample = false;
+    saveStore();
+    renderAll();
+  });
+
+  document.getElementById("copyBtn").addEventListener("click", function(){
+    var text = tsvOut.value;
+    function done(ok){
+      copyStatus.textContent = ok ? "コピーしました。スプレッドシートに貼り付けられます。" : "コピーに失敗しました。テキストエリアを選択して手動でコピーしてください。";
+      copyStatus.className = ok ? "status ok" : "status err";
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){ done(true); }).catch(function(){
+        try{
+          tsvOut.select();
+          document.execCommand("copy");
+          done(true);
+        }catch(e){ done(false); }
+      });
+    } else {
+      try{
+        tsvOut.select();
+        document.execCommand("copy");
+        done(true);
+      }catch(e){ done(false); }
+    }
+  });
+
+  // ---------- init ----------
+  loadStore();
+  renderAll();
+})();
+</script>
