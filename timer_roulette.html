@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1分タイマー & ルーレット抽選</title>
+<style>
+  :root{
+    --bg:#f4f5f7;
+    --card:#ffffff;
+    --text:#1f2430;
+    --muted:#6b7280;
+    --border:#e5e7eb;
+    --accent:#4f46e5;
+    --accent-dark:#4338ca;
+    --accent-soft:#eef2ff;
+    --danger:#ef4444;
+    --success:#16a34a;
+    --shadow:0 6px 20px rgba(20,20,40,0.08);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#14161d;
+      --card:#1d2029;
+      --text:#eef0f4;
+      --muted:#9aa0ac;
+      --border:#2c303b;
+      --accent:#818cf8;
+      --accent-dark:#6366f1;
+      --accent-soft:#232544;
+      --danger:#f87171;
+      --success:#4ade80;
+      --shadow:0 6px 24px rgba(0,0,0,0.4);
+    }
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    padding:32px 16px 64px;
+    background:var(--bg);
+    color:var(--text);
+    font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    min-height:100vh;
+  }
+  h1{
+    text-align:center;
+    font-size:1.6rem;
+    margin:0 0 8px;
+  }
+  .subtitle{
+    text-align:center;
+    color:var(--muted);
+    margin:0 0 32px;
+    font-size:0.95rem;
+  }
+  .wrap{
+    max-width:1000px;
+    margin:0 auto;
+    display:flex;
+    flex-wrap:wrap;
+    gap:24px;
+    justify-content:center;
+    align-items:flex-start;
+  }
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:20px;
+    box-shadow:var(--shadow);
+    padding:28px 24px 32px;
+    flex:1 1 380px;
+    max-width:440px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    transition:box-shadow .2s ease;
+  }
+  .card h2{
+    font-size:1.15rem;
+    margin:0 0 20px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .card h2 .badge{
+    font-size:1.3rem;
+  }
+
+  /* ---- Timer ---- */
+  .timer-ring-wrap{
+    position:relative;
+    width:220px;
+    height:220px;
+    margin:4px 0 20px;
+  }
+  .timer-ring-wrap svg{
+    transform:rotate(-90deg);
+    width:220px;
+    height:220px;
+  }
+  .ring-bg{
+    fill:none;
+    stroke:var(--border);
+    stroke-width:12;
+  }
+  .ring-progress{
+    fill:none;
+    stroke:var(--accent);
+    stroke-width:12;
+    stroke-linecap:round;
+    transition:stroke .3s ease;
+  }
+  .timer-display{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:2.6rem;
+    font-weight:700;
+    font-variant-numeric:tabular-nums;
+    letter-spacing:1px;
+  }
+  .timer-status{
+    min-height:1.4em;
+    color:var(--muted);
+    font-size:0.9rem;
+    margin-bottom:14px;
+  }
+  .timer-status.done{
+    color:var(--danger);
+    font-weight:700;
+  }
+  .card.flash{
+    animation:flashCard 0.5s ease-in-out 4;
+  }
+  @keyframes flashCard{
+    0%,100%{ box-shadow:var(--shadow); }
+    50%{ box-shadow:0 0 0 6px var(--danger); }
+  }
+  .btn-row{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  button{
+    font-family:inherit;
+    font-size:0.95rem;
+    font-weight:600;
+    border:none;
+    border-radius:12px;
+    padding:11px 20px;
+    cursor:pointer;
+    transition:transform .12s ease, opacity .12s ease, background .15s ease;
+    background:var(--accent-soft);
+    color:var(--accent-dark);
+  }
+  button:hover:not(:disabled){ transform:translateY(-1px); }
+  button:active:not(:disabled){ transform:translateY(0); }
+  button:disabled{ opacity:0.45; cursor:not-allowed; }
+  button.primary{
+    background:var(--accent);
+    color:#fff;
+  }
+  button.primary:hover:not(:disabled){ background:var(--accent-dark); }
+  button.ghost{
+    background:transparent;
+    border:1px solid var(--border);
+    color:var(--text);
+  }
+
+  /* ---- Roulette ---- */
+  textarea{
+    width:100%;
+    min-height:110px;
+    resize:vertical;
+    border-radius:12px;
+    border:1px solid var(--border);
+    background:var(--bg);
+    color:var(--text);
+    padding:12px 14px;
+    font-family:inherit;
+    font-size:0.92rem;
+    line-height:1.6;
+    margin-bottom:10px;
+  }
+  textarea:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .item-count{
+    align-self:flex-start;
+    font-size:0.82rem;
+    color:var(--muted);
+    margin-bottom:14px;
+  }
+  .wheel-area{
+    position:relative;
+    width:280px;
+    height:280px;
+    margin:6px auto 18px;
+  }
+  .pointer{
+    position:absolute;
+    top:-6px;
+    left:50%;
+    transform:translateX(-50%);
+    width:0; height:0;
+    border-left:14px solid transparent;
+    border-right:14px solid transparent;
+    border-top:24px solid var(--danger);
+    z-index:3;
+    filter:drop-shadow(0 2px 2px rgba(0,0,0,0.25));
+  }
+  #wheelCanvas{
+    width:100%;
+    height:100%;
+    border-radius:50%;
+    box-shadow:0 0 0 6px var(--card), 0 0 0 8px var(--border);
+    transition:transform 4s cubic-bezier(.15,.65,.1,1);
+  }
+  .hub{
+    position:absolute;
+    top:50%; left:50%;
+    width:22px; height:22px;
+    background:var(--card);
+    border:3px solid var(--accent);
+    border-radius:50%;
+    transform:translate(-50%,-50%);
+    z-index:2;
+  }
+  .result-box{
+    width:100%;
+    min-height:56px;
+    border-radius:14px;
+    background:var(--accent-soft);
+    color:var(--accent-dark);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    font-size:1.15rem;
+    font-weight:700;
+    padding:10px 14px;
+    margin-bottom:14px;
+    word-break:break-all;
+  }
+  .result-box.placeholder{
+    color:var(--muted);
+    font-weight:500;
+    font-size:0.92rem;
+  }
+  .option-row{
+    align-self:flex-start;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:0.85rem;
+    color:var(--muted);
+    margin-bottom:16px;
+  }
+  .history{
+    width:100%;
+    margin-top:18px;
+  }
+  .history h3{
+    font-size:0.85rem;
+    color:var(--muted);
+    margin:0 0 8px;
+    font-weight:600;
+  }
+  .history ul{
+    list-style:none;
+    margin:0;
+    padding:0;
+    max-height:130px;
+    overflow-y:auto;
+    border-top:1px solid var(--border);
+  }
+  .history li{
+    display:flex;
+    justify-content:space-between;
+    gap:8px;
+    padding:7px 2px;
+    border-bottom:1px dashed var(--border);
+    font-size:0.85rem;
+  }
+  .history li span.time{
+    color:var(--muted);
+    font-variant-numeric:tabular-nums;
+    flex-shrink:0;
+  }
+  footer{
+    text-align:center;
+    color:var(--muted);
+    font-size:0.78rem;
+    margin-top:40px;
+  }
+</style>
+</head>
+<body>
+
+<h1>⏱️ 1分タイマー & 🎡 ルーレット抽選</h1>
+<p class="subtitle">好きなだけ書いて回すだけ。ブラウザだけで動くシンプルツールです。</p>
+
+<div class="wrap">
+
+  <!-- ===== Timer Card ===== -->
+  <section class="card" id="timerCard">
+    <h2><span class="badge">⏱️</span>1分タイマー</h2>
+    <div class="timer-ring-wrap">
+      <svg viewBox="0 0 220 220">
+        <circle class="ring-bg" cx="110" cy="110" r="98"></circle>
+        <circle class="ring-progress" id="ringProgress" cx="110" cy="110" r="98"
+                stroke-dasharray="615.75" stroke-dashoffset="0"></circle>
+      </svg>
+      <div class="timer-display" id="timerDisplay">01:00</div>
+    </div>
+    <div class="timer-status" id="timerStatus">準備完了</div>
+    <div class="btn-row">
+      <button class="primary" id="startBtn">スタート</button>
+      <button id="pauseBtn" disabled>一時停止</button>
+      <button class="ghost" id="resetBtn">リセット</button>
+    </div>
+  </section>
+
+  <!-- ===== Roulette Card ===== -->
+  <section class="card" id="rouletteCard">
+    <h2><span class="badge">🎡</span>ルーレット抽選</h2>
+    <textarea id="itemInput" placeholder="ここに抽選したい項目を1行ずつ入力してください&#10;例）&#10;りんご&#10;バナナ&#10;みかん&#10;ぶどう"></textarea>
+    <div class="item-count" id="itemCount">0 件入力中</div>
+
+    <div class="wheel-area">
+      <div class="pointer"></div>
+      <div class="hub"></div>
+      <canvas id="wheelCanvas" width="280" height="280"></canvas>
+    </div>
+
+    <div class="btn-row" style="margin-bottom:16px;">
+      <button class="primary" id="spinBtn">抽選スタート</button>
+      <button class="ghost" id="clearHistoryBtn">履歴クリア</button>
+    </div>
+
+    <div class="result-box placeholder" id="resultBox">結果はここに表示されます</div>
+
+    <label class="option-row">
+      <input type="checkbox" id="removeAfterPick">
+      抽選後に当選項目をリストから除外する（重複なし抽選）
+    </label>
+
+    <div class="history">
+      <h3>抽選履歴</h3>
+      <ul id="historyList"></ul>
+    </div>
+  </section>
+
+</div>
+
+<footer>このページはインターネット接続なしでも動作します。</footer>
+
+<script>
+(function(){
+  /* =========================================================
+     1分タイマー
+  ========================================================= */
+  const DURATION_MS = 60 * 1000;
+  const ring = document.getElementById('ringProgress');
+  const circumference = 2 * Math.PI * 98;
+  ring.style.strokeDasharray = circumference.toFixed(2);
+
+  const display = document.getElementById('timerDisplay');
+  const statusEl = document.getElementById('timerStatus');
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const timerCard = document.getElementById('timerCard');
+  const originalTitle = document.title;
+
+  let remainingMs = DURATION_MS;
+  let endTime = null;
+  let rafId = null;
+  let running = false;
+  let audioCtx = null;
+
+  function formatMs(ms){
+    const totalSec = Math.max(0, Math.ceil(ms / 1000));
+    const m = String(Math.floor(totalSec / 60)).padStart(2, '0');
+    const s = String(totalSec % 60).padStart(2, '0');
+    return m + ':' + s;
+  }
+
+  function renderTimer(ms){
+    display.textContent = formatMs(ms);
+    const ratio = Math.max(0, Math.min(1, ms / DURATION_MS));
+    ring.style.strokeDashoffset = (circumference * (1 - ratio)).toFixed(2);
+    if (running) document.title = '⏰ ' + formatMs(ms) + ' - タイマー';
+  }
+
+  function tick(){
+    if (!running) return;
+    const now = Date.now();
+    const left = endTime - now;
+    if (left <= 0){
+      renderTimer(0);
+      finishTimer();
+      return;
+    }
+    renderTimer(left);
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function playBeep(){
+    try{
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const now = audioCtx.currentTime;
+      for (let i = 0; i < 3; i++){
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.0001, now + i * 0.35);
+        gain.gain.exponentialRampToValueAtTime(0.35, now + i * 0.35 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.35 + 0.28);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now + i * 0.35);
+        osc.stop(now + i * 0.35 + 0.3);
+      }
+    }catch(e){ /* audio unsupported: fail silently */ }
+  }
+
+  function finishTimer(){
+    running = false;
+    remainingMs = 0;
+    startBtn.disabled = false;
+    startBtn.textContent = 'もう一度';
+    pauseBtn.disabled = true;
+    statusEl.textContent = '⏰ 終了！';
+    statusEl.classList.add('done');
+    document.title = originalTitle;
+    playBeep();
+    timerCard.classList.add('flash');
+    setTimeout(() => timerCard.classList.remove('flash'), 2100);
+  }
+
+  function startTimer(){
+    if (running) return;
+    if (remainingMs <= 0) remainingMs = DURATION_MS;
+    running = true;
+    endTime = Date.now() + remainingMs;
+    startBtn.disabled = true;
+    pauseBtn.disabled = false;
+    statusEl.textContent = '実行中…';
+    statusEl.classList.remove('done');
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function pauseTimer(){
+    if (!running) return;
+    running = false;
+    remainingMs = Math.max(0, endTime - Date.now());
+    cancelAnimationFrame(rafId);
+    startBtn.disabled = false;
+    startBtn.textContent = '再開';
+    pauseBtn.disabled = true;
+    statusEl.textContent = '一時停止中';
+    document.title = originalTitle;
+  }
+
+  function resetTimer(){
+    running = false;
+    cancelAnimationFrame(rafId);
+    remainingMs = DURATION_MS;
+    renderTimer(DURATION_MS);
+    startBtn.disabled = false;
+    startBtn.textContent = 'スタート';
+    pauseBtn.disabled = true;
+    statusEl.textContent = '準備完了';
+    statusEl.classList.remove('done');
+    document.title = originalTitle;
+  }
+
+  startBtn.addEventListener('click', startTimer);
+  pauseBtn.addEventListener('click', pauseTimer);
+  resetBtn.addEventListener('click', resetTimer);
+  renderTimer(DURATION_MS);
+
+  /* =========================================================
+     ルーレット抽選
+  ========================================================= */
+  const itemInput = document.getElementById('itemInput');
+  const itemCountEl = document.getElementById('itemCount');
+  const spinBtn = document.getElementById('spinBtn');
+  const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+  const resultBox = document.getElementById('resultBox');
+  const removeAfterPick = document.getElementById('removeAfterPick');
+  const historyList = document.getElementById('historyList');
+  const canvas = document.getElementById('wheelCanvas');
+  const ctx = canvas.getContext('2d');
+  const CX = 140, CY = 140, R = 130;
+
+  const PALETTE = [
+    '#6366f1', '#ec4899', '#f59e0b', '#10b981',
+    '#3b82f6', '#ef4444', '#8b5cf6', '#14b8a6',
+    '#f97316', '#0ea5e9', '#84cc16', '#e11d48'
+  ];
+
+  let currentRotation = 0;
+  let isSpinning = false;
+
+  function getItems(){
+    return itemInput.value
+      .split('\n')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+  }
+
+  function updateItemCount(){
+    const n = getItems().length;
+    itemCountEl.textContent = n + ' 件入力中';
+  }
+
+  function drawWheel(){
+    const items = getItems();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (items.length === 0){
+      ctx.beginPath();
+      ctx.arc(CX, CY, R, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(150,150,160,0.15)';
+      ctx.fill();
+      ctx.fillStyle = '#9aa0ac';
+      ctx.font = '14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('項目を入力してください', CX, CY);
+      return;
+    }
+
+    const segAngle = 360 / items.length;
+    items.forEach((label, i) => {
+      const startDeg = -90 + i * segAngle;
+      const endDeg = -90 + (i + 1) * segAngle;
+      const start = startDeg * Math.PI / 180;
+      const end = endDeg * Math.PI / 180;
+
+      ctx.beginPath();
+      ctx.moveTo(CX, CY);
+      ctx.arc(CX, CY, R, start, end);
+      ctx.closePath();
+      ctx.fillStyle = PALETTE[i % PALETTE.length];
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // label
+      const midDeg = -90 + (i + 0.5) * segAngle;
+      const midRad = midDeg * Math.PI / 180;
+      ctx.save();
+      ctx.translate(CX, CY);
+      ctx.rotate(midRad);
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
+      const fontSize = items.length > 14 ? 10 : items.length > 8 ? 12 : 14;
+      ctx.font = 'bold ' + fontSize + 'px sans-serif';
+      let text = label;
+      const maxChars = items.length > 10 ? 6 : 10;
+      if (text.length > maxChars) text = text.slice(0, maxChars - 1) + '…';
+      ctx.fillText(text, R - 14, 0);
+      ctx.restore();
+    });
+  }
+
+  function renderHistory(list){
+    historyList.innerHTML = '';
+    list.slice().reverse().forEach(entry => {
+      const li = document.createElement('li');
+      const span = document.createElement('span');
+      span.textContent = entry.label;
+      const time = document.createElement('span');
+      time.className = 'time';
+      time.textContent = entry.time;
+      li.appendChild(span);
+      li.appendChild(time);
+      historyList.appendChild(li);
+    });
+  }
+
+  let history = [];
+
+  function addHistory(label){
+    const now = new Date();
+    const time = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0');
+    history.push({ label, time });
+    renderHistory(history);
+  }
+
+  function spin(){
+    if (isSpinning) return;
+    const items = getItems();
+    if (items.length === 0){
+      resultBox.textContent = 'まず項目を1つ以上入力してください';
+      resultBox.classList.add('placeholder');
+      return;
+    }
+    isSpinning = true;
+    spinBtn.disabled = true;
+    resultBox.classList.remove('placeholder');
+    resultBox.textContent = '抽選中…';
+
+    const segAngle = 360 / items.length;
+    const chosenIndex = Math.floor(Math.random() * items.length);
+    const jitter = (Math.random() - 0.5) * segAngle * 0.7;
+    const targetCenter = (chosenIndex * segAngle + segAngle / 2 + jitter + 360) % 360;
+
+    const currentMod = ((currentRotation % 360) + 360) % 360;
+    const desiredMod = (360 - targetCenter) % 360;
+    let deltaMod = (desiredMod - currentMod + 360) % 360;
+    const extraSpins = 5 + Math.floor(Math.random() * 3);
+    currentRotation += extraSpins * 360 + deltaMod;
+
+    canvas.style.transform = 'rotate(' + currentRotation + 'deg)';
+
+    const onEnd = () => {
+      canvas.removeEventListener('transitionend', onEnd);
+      const chosen = items[chosenIndex];
+      resultBox.textContent = '🎉 ' + chosen;
+      addHistory(chosen);
+      isSpinning = false;
+      spinBtn.disabled = false;
+
+      if (removeAfterPick.checked){
+        const remaining = items.slice();
+        remaining.splice(chosenIndex, 1);
+        itemInput.value = remaining.join('\n');
+        updateItemCount();
+        drawWheel();
+      }
+    };
+    canvas.addEventListener('transitionend', onEnd);
+  }
+
+  itemInput.addEventListener('input', () => {
+    updateItemCount();
+    drawWheel();
+  });
+  spinBtn.addEventListener('click', spin);
+  clearHistoryBtn.addEventListener('click', () => {
+    history = [];
+    renderHistory(history);
+  });
+
+  updateItemCount();
+  drawWheel();
+})();
+</script>
+</body>
+</html>
