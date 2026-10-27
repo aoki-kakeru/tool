@@ -187,11 +187,14 @@
   .btn.primary:hover{background:var(--accent-dark);border-color:var(--accent-dark);}
   .btn.ghost{border-style:dashed;width:100%;color:var(--muted);}
   .btn.ghost:hover{color:var(--accent);}
+  .btn.sm{padding:4px 10px;font-size:12px;border-radius:7px;}
   .btn.danger:hover{background:var(--danger-soft);border-color:var(--danger);color:var(--danger);}
   kbd{
     font-family:ui-monospace,monospace;font-size:10px;
     padding:1px 5px;border:1px solid var(--border);border-radius:4px;color:var(--muted);
   }
+
+  kbd.on-primary{border-color:rgba(255,255,255,.45);color:rgba(255,255,255,.85);}
 
   /* ---- サイドパネル ---- */
   .side{position:sticky;top:24px;display:flex;flex-direction:column;gap:16px;}
@@ -261,7 +264,13 @@
     <!-- 右：サマリー -->
     <aside class="side">
       <section class="card">
-        <div class="card-head"><h2>優先順位</h2></div>
+        <div class="card-head">
+          <h2>優先順位</h2>
+          <button class="btn sm" id="copyImgMiniBtn" type="button" title="画像でコピー（Ctrl+Shift+C）">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            画像コピー
+          </button>
+        </div>
         <div class="body">
           <div class="status" id="status"></div>
           <ol class="rank" id="rank"></ol>
@@ -274,7 +283,9 @@
           <div class="actions">
             <button class="btn" id="sortBtn" type="button">優先度順に並替</button>
             <button class="btn" id="autoBtn" type="button">重複を自動解消</button>
-            <button class="btn primary full" id="copyMdBtn" type="button">Markdownでコピー</button>
+            <button class="btn primary full" id="copyImgBtn" type="button">画像でコピー <kbd class="on-primary">Ctrl</kbd>+<kbd class="on-primary">Shift</kbd>+<kbd class="on-primary">C</kbd></button>
+            <button class="btn" id="saveImgBtn" type="button">画像保存</button>
+            <button class="btn" id="copyMdBtn" type="button">Markdownコピー</button>
             <button class="btn" id="copyJsonBtn" type="button">JSONコピー</button>
             <button class="btn" id="downloadBtn" type="button">JSON保存</button>
             <button class="btn" id="importBtn" type="button">JSON読込</button>
@@ -571,6 +582,146 @@
     reader.readAsText(file);
   }
 
+  // ---- 画像出力 ----
+  // 共有先で見やすいよう、テーマに関わらずライトの配色で描画する
+  function drawImage() {
+    const items = readItems();
+    const max = maxPriority();
+    const W = 960, PAD = 40, ROW = 84, HEAD = 92;
+    const H = HEAD + items.length * ROW + 24;
+    const SCALE = 2;
+    const FONT = 'system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif';
+
+    const canvas = document.createElement("canvas");
+    canvas.width = W * SCALE;
+    canvas.height = H * SCALE;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(SCALE, SCALE);
+
+    const pill = (x, y, w, h, fill) => {
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, h / 2);
+      ctx.fillStyle = fill;
+      ctx.fill();
+    };
+    const fitText = (text, maxW) => {
+      if (ctx.measureText(text).width <= maxW) return text;
+      while (text && ctx.measureText(text + "…").width > maxW) text = text.slice(0, -1);
+      return text + "…";
+    };
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, W, H);
+
+    // ヘッダー
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "#1f2430";
+    ctx.font = `700 22px ${FONT}`;
+    ctx.fillText("トレードオフ・スライダー", PAD, 50);
+    ctx.fillStyle = "#6b7280";
+    ctx.font = `400 12px ${FONT}`;
+    ctx.fillText("左（MAX）ほど優先度が高い · P0 が最優先", PAD, 72);
+    const d = new Date();
+    ctx.textAlign = "right";
+    ctx.fillText(`${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`, W - PAD, 50);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#e5e7eb";
+    ctx.fillRect(PAD, HEAD - 1, W - PAD * 2, 1);
+
+    const trackL = PAD + 44, trackR = W - PAD - 44;
+
+    items.forEach((it, i) => {
+      const y = HEAD + i * ROW;
+      const c = colorOf(it.priority);
+
+      // 項目名とバッジ
+      const badge = `P${it.priority}`;
+      ctx.font = `700 13px ${FONT}`;
+      const bw = Math.max(48, ctx.measureText(badge).width + 22);
+      pill(W - PAD - bw, y + 14, bw, 24, c);
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(badge, W - PAD - bw / 2, y + 26.5);
+
+      ctx.textAlign = "left";
+      ctx.font = `600 15px ${FONT}`;
+      const name = it.name.trim();
+      ctx.fillStyle = name ? "#1f2430" : "#9ca3af";
+      ctx.fillText(fitText(name || "（未入力）", W - PAD * 2 - bw - 16), PAD, y + 26);
+
+      // スライダー
+      const ty = y + 56;
+      ctx.font = `700 11px ${FONT}`;
+      ctx.fillStyle = "#6b7280";
+      ctx.textAlign = "center";
+      ctx.fillText("MAX", PAD + 18, ty);
+      ctx.fillText("MIN", W - PAD - 18, ty);
+
+      const pos = max ? trackL + ((trackR - trackL) * it.priority) / max : trackL;
+      pill(trackL, ty - 3, trackR - trackL, 6, "#e5e7eb");
+      if (pos > trackL) pill(trackL, ty - 3, pos - trackL, 6, c);
+
+      // 目盛り
+      ctx.font = `400 10px ${FONT}`;
+      for (let p = 0; p <= max; p++) {
+        const tx = max ? trackL + ((trackR - trackL) * p) / max : trackL;
+        ctx.fillStyle = p === it.priority ? "#1f2430" : "#9ca3af";
+        ctx.font = `${p === it.priority ? 700 : 400} 10px ${FONT}`;
+        ctx.fillText(`P${p}`, tx, ty + 18);
+      }
+
+      // つまみ
+      ctx.beginPath();
+      ctx.arc(pos, ty, 9, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.shadowColor = "rgba(0,0,0,.2)";
+      ctx.shadowBlur = 4;
+      ctx.fill();
+      ctx.shadowColor = "transparent";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = c;
+      ctx.stroke();
+
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+      if (i < items.length - 1) {
+        ctx.fillStyle = "#f0f1f3";
+        ctx.fillRect(PAD, y + ROW - 1, W - PAD * 2, 1);
+      }
+    });
+
+    return canvas;
+  }
+
+  const canvasToBlob = canvas => new Promise(res => canvas.toBlob(res, "image/png"));
+
+  function downloadBlob(blob, ext) {
+    const a = Object.assign(document.createElement("a"), {
+      href: URL.createObjectURL(blob),
+      download: `tradeoff_slider_${new Date().toISOString().slice(0, 10)}.${ext}`,
+    });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  async function copyImage() {
+    // Safari はユーザー操作の同期区間で write を呼ぶ必要があるため、Blob は Promise のまま渡す
+    const blobPromise = canvasToBlob(drawImage());
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blobPromise })]);
+      toast("画像をクリップボードにコピーしました");
+    } catch (_) {
+      downloadBlob(await blobPromise, "png");
+      toast("コピーできない環境のため画像を保存しました");
+    }
+  }
+
+  async function saveImage() {
+    downloadBlob(await canvasToBlob(drawImage()), "png");
+    toast("画像を保存しました");
+  }
+
   let toastTimer;
   function toast(msg) {
     toastEl.textContent = msg;
@@ -583,6 +734,9 @@
   $("addBtn").addEventListener("click", () => addSlider("", null, { focus: true }));
   $("sortBtn").addEventListener("click", sortByPriority);
   $("autoBtn").addEventListener("click", resolveDuplicates);
+  $("copyImgBtn").addEventListener("click", copyImage);
+  $("copyImgMiniBtn").addEventListener("click", copyImage);
+  $("saveImgBtn").addEventListener("click", saveImage);
   $("copyMdBtn").addEventListener("click", () => copy(toMarkdown(), "Markdown"));
   $("copyJsonBtn").addEventListener("click", () => copy(JSON.stringify(readItems(), null, 2), "JSON"));
   $("downloadBtn").addEventListener("click", downloadJSON);
@@ -600,6 +754,10 @@
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       addSlider("", null, { focus: true });
+    }
+    if (e.key.toLowerCase() === "c" && e.shiftKey && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      copyImage();
     }
   });
 
